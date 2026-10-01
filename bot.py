@@ -12,7 +12,9 @@ from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    KeyboardButton,
     Message,
+    ReplyKeyboardMarkup,
 )
 from dotenv import load_dotenv
 
@@ -32,6 +34,22 @@ dp.message.filter(F.from_user.id == OWNER_ID)
 dp.callback_query.filter(F.from_user.id == OWNER_ID)
 
 
+def get_main_keyboard() -> ReplyKeyboardMarkup:
+    """Builds the persistent buttons under the user's input text bar."""
+    kb = [
+        [KeyboardButton(text="👤 Username"), KeyboardButton(text="📧 Email")],
+        [KeyboardButton(text="📱 Phone"), KeyboardButton(text="🌐 Domain")],
+        [KeyboardButton(text="📡 IP Lookup"), KeyboardButton(text="✈️ Telegram")],
+        [KeyboardButton(text="🕵️ Dorks"), KeyboardButton(text="💥 Breach Check")],
+        [KeyboardButton(text="📷 Image / EXIF Info"), KeyboardButton(text="ℹ️ Help")],
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard=kb,
+        resize_keyboard=True,
+        persistent=True,
+    )
+
+
 def build_keyboard(result: module.Result) -> InlineKeyboardMarkup | None:
     """Builds inline URL buttons and action buttons from a Result."""
     keyboard: list[list[InlineKeyboardButton]] = []
@@ -39,7 +57,6 @@ def build_keyboard(result: module.Result) -> InlineKeyboardMarkup | None:
     # Action buttons (internal bot actions)
     action_row = []
     for label, kind, target in result.actions:
-        # Keep callback data short to avoid Telegram 64-byte limit
         cb_data = f"act:{kind}:{target[:40]}"
         action_row.append(InlineKeyboardButton(text=label, callback_data=cb_data))
         if len(action_row) == 2:
@@ -66,7 +83,6 @@ async def send_result(message: Message, result: module.Result, status_msg: Messa
     kb = build_keyboard(result)
     text = result.text.strip()
 
-    # Telegram message character limit safety
     if len(text) > 4000:
         first_part = text[:3900] + "\n\n<i>[Message truncated...]</i>"
         if status_msg:
@@ -79,7 +95,6 @@ async def send_result(message: Message, result: module.Result, status_msg: Messa
         else:
             await message.answer(text, reply_markup=kb)
 
-    # If the module produced a report file (like subdomains or username hits)
     if result.file:
         fname, data = result.file
         await message.answer_document(BufferedInputFile(data, filename=fname))
@@ -99,17 +114,9 @@ async def cmd_start(message: Message):
         "• <code>8.8.8.8</code> → IP geolocation & Shodan open ports\n"
         "• <code>John Doe</code> → Real name dorking\n"
         "• Send an image as <b>File / Document</b> → EXIF & GPS metadata\n\n"
-        "<b>Explicit Commands:</b>\n"
-        "/user <code>&lt;username&gt;</code>\n"
-        "/email <code>&lt;address&gt;</code>\n"
-        "/phone <code>&lt;number&gt;</code>\n"
-        "/domain <code>&lt;domain&gt;</code>\n"
-        "/ip <code>&lt;ip&gt;</code>\n"
-        "/tg <code>&lt;username/id&gt;</code>\n"
-        "/dork <code>&lt;query&gt;</code>\n"
-        "/breach <code>&lt;email&gt;</code>"
+        "<b>Or use the buttons under the input box!</b>"
     )
-    await message.answer(text)
+    await message.answer(text, reply_markup=get_main_keyboard())
 
 
 @dp.message(Command("user"))
@@ -199,11 +206,41 @@ async def cmd_breach(message: Message, command: CommandObject):
     await send_result(message, res, st)
 
 
+# ──────────────────────── Keyboard Button Prompts ────────────────────────
+
+BUTTON_HELP = {
+    "👤 Username": "To scan a username, send it directly or use:\n<code>/user johndoe</code>",
+    "📧 Email": "To check an email, send it directly or use:\n<code>/email target@gmail.com</code>",
+    "📱 Phone": "To check a phone number, send it directly or use:\n<code>/phone +251911234567</code>",
+    "🌐 Domain": "To lookup a domain, send it directly or use:\n<code>/domain example.com</code>",
+    "📡 IP Lookup": "To lookup an IP, send it directly or use:\n<code>/ip 8.8.8.8</code>",
+    "✈️ Telegram": "To inspect a Telegram account, use:\n<code>/tg username</code>",
+    "🕵️ Dorks": "To generate Google Dorks, use:\n<code>/dork target_name</code>",
+    "💥 Breach Check": "To check breaches only, use:\n<code>/breach target@gmail.com</code>",
+}
+
+
+@dp.message(F.text.in_(BUTTON_HELP.keys()))
+async def handle_button_press(message: Message):
+    tip = BUTTON_HELP.get(message.text, "")
+    await message.answer(tip)
+
+
+@dp.message(F.text == "📷 Image / EXIF Info")
+async def handle_image_button(message: Message):
+    res = module.photo_tip()
+    await send_result(message, res)
+
+
+@dp.message(F.text == "ℹ️ Help")
+async def handle_help_button(message: Message):
+    await cmd_start(message)
+
+
 # ──────────────────────── Photos & Documents ────────────────────────
 
 @dp.message(F.photo)
 async def handle_photo(message: Message):
-    # Telegram strips EXIF from compressed photos
     res = module.photo_tip()
     await send_result(message, res)
 
@@ -255,7 +292,7 @@ async def handle_any_text(message: Message):
     kind = module.detect(text)
 
     st = await message.answer(f"⏳ Detected <b>{kind.upper()}</b>. Looking up...")
-    
+
     if kind == "email":
         res = await module.email(text)
     elif kind == "ip":
