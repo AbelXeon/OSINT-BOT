@@ -1,3 +1,7 @@
 aiogram>=3.7
 aiohttp>=3.9
 python-dotenv>=1.0
+dnspython>=2.6
+phonenumbers>=8.13
+python-whois>=0.9
+Pillow>=10.0
