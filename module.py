@@ -26,7 +26,7 @@ from PIL.ExifTags import GPSTAGS, TAGS
 import checker
 
 UA = {"User-Agent": checker.BASE_HEADERS["User-Agent"]}
-LINE = "━━━━━━━━━━━━━━━━"
+BAR = "━━━━━━━━━━━━━━━━━━"
 INCLUDE_ADULT = os.getenv("INCLUDE_ADULT", "0") == "1"
 
 
@@ -38,20 +38,42 @@ class Result:
     file: tuple[str, bytes] | None = None
 
 
-# ───────────────────────── helpers ─────────────────────────
+class Code(str):
+    """Marks a value to be shown in copyable monospace."""
+
+
+# ───────────────────────── formatting helpers ─────────────────────────
 def e(x) -> str:
     return escape(str(x))
 
 
+def _empty(v) -> bool:
+    return v is None or (isinstance(v, (str, list, tuple, set, dict)) and len(v) == 0)
+
+
 def head(icon: str, title: str, target: str = "") -> str:
     sub = f"\n<code>{e(target)}</code>" if target else ""
-    return f"{icon} <b>{e(title)}</b>{sub}\n{LINE}\n"
+    return f"{icon} <b>{e(title.upper())}</b>{sub}\n{BAR}\n"
 
 
-def row(label: str, value) -> str:
-    if value in (None, "", [], ()):
-        return ""
-    return f"▸ <b>{e(label)}:</b> {e(value)}\n"
+def section(icon: str, title: str, count=None) -> str:
+    c = f"  ·  <b>{count}</b>" if count is not None else ""
+    return f"{icon} <b>{e(title)}</b>{c}\n"
+
+
+def tree(items) -> str:
+    """Nice ├ └ list. Empty values are skipped."""
+    items = [(label, v) for label, v in items if not _empty(v)]
+    lines = []
+    for i, (label, v) in enumerate(items):
+        branch = "└" if i == len(items) - 1 else "├"
+        val = f"<code>{e(v)}</code>" if isinstance(v, Code) else e(v)
+        lines.append(f"{branch} <b>{e(label)}</b>  {val}")
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+def row(label: str, value) -> str:  # kept for compatibility
+    return "" if _empty(value) else f"▸ <b>{e(label)}:</b> {e(value)}\n"
 
 
 def google(q: str) -> str:
@@ -135,12 +157,14 @@ async def username(raw: str) -> Result:
     secs = int(time.time() - t0)
 
     out = head("👤", "Username Scan", name)
+    google_btn = [("🔍 Google", google(f'"{name}"'))]
     if not hits:
-        out += f"❌ No profiles found on {total} sites ({secs}s)"
-        return Result(out, links=[("🔍 Google", google(f'"{name}"'))])
+        out += "❌ <b>No profiles found</b>\n" + tree([("Sites checked", total), ("Time", f"{secs}s")])
+        return Result(out, links=google_btn)
 
-    out += f"✅ <b>{len(hits)}</b> profiles · {total} sites · {secs}s\n"
-    out += "<i>Open a link to confirm - some hits can be false positives.</i>"
+    out += f"✅ <b>{len(hits)} profiles found</b>\n"
+    out += tree([("Sites checked", total), ("Time", f"{secs}s")])
+    out += "\n<i>Open a link to confirm - some hits can be false positives.</i>"
 
     groups: dict[str, list[dict]] = {}
     for h in hits:
@@ -148,12 +172,12 @@ async def username(raw: str) -> Result:
     for cat, items in sorted(groups.items(), key=lambda kv: -len(kv[1])):
         links = [f'<a href="{escape(h["url"], quote=True)}">{e(h["site"])}</a>' for h in items]
         lines = [" · ".join(links[i:i + 8]) for i in range(0, len(links), 8)]
-        out += f"\n\n{CAT_ICON.get(cat.lower(), '📌')} <b>{e(cat.upper())}</b> · {len(items)}\n" + "\n".join(lines)
+        out += f"\n\n{CAT_ICON.get(cat.lower(), '📌')} <b>{e(cat.upper())}</b>  ·  {len(items)}\n" + "\n".join(lines)
 
     report = "\n".join(f"{h['cat']}\t{h['site']}\t{h['url']}" for h in hits)
     return Result(
         out,
-        links=[("🔍 Google", google(f'"{name}"'))],
+        links=google_btn,
         actions=[("✈️ Telegram lookup", "tg", name)],
         file=(f"username_{name}.txt", report.encode()),
     )
@@ -205,14 +229,13 @@ async def _breach(addr: str) -> tuple[str, list[str]]:
     return ("ok", names) if names else ("clean", [])
 
 
-def _breach_block(status: str, names: list[str]) -> str:
+def _breach_body(status: str, names: list[str]) -> str:
     if status == "error":
-        return "💥 <b>Breaches</b>\n⚠️ Breach service unavailable right now"
+        return "⚠️ Breach service unavailable right now"
     if status == "clean":
-        return "💥 <b>Breaches</b>\n✅ Not found in known breaches"
-    shown = names[:60]
-    body = ", ".join(e(n) for n in shown) + (f" +{len(names) - 60} more" if len(names) > 60 else "")
-    return f"💥 <b>Breaches</b> · {len(names)}\n<blockquote expandable>{body}</blockquote>"
+        return "✅ Not found in known breaches"
+    body = ", ".join(e(n) for n in names[:60]) + (f" +{len(names) - 60} more" if len(names) > 60 else "")
+    return f"🚨 <b>Found in {len(names)} breaches</b>\n<blockquote expandable>{body}</blockquote>"
 
 
 async def breach(raw: str) -> Result:
@@ -220,8 +243,9 @@ async def breach(raw: str) -> Result:
     if not EMAIL_RE.match(addr):
         return Result("❌ Invalid email address.")
     status, names = await _breach(addr)
-    return Result(head("💥", "Breach Check", addr) + _breach_block(status, names)[len("💥 <b>Breaches</b>"):].lstrip("\n"),
-                  links=[("🔍 Have I Been Pwned", f"https://haveibeenpwned.com/account/{quote(addr)}")])
+    out = head("💥", "Breach Check", addr) + _breach_body(status, names)
+    out += "\n\n<i>Shows which leaks the email appeared in - never passwords.</i>"
+    return Result(out, links=[("🛡 Have I Been Pwned", f"https://haveibeenpwned.com/account/{quote(addr)}")])
 
 
 async def email(raw: str) -> Result:
@@ -233,39 +257,40 @@ async def email(raw: str) -> Result:
     mx, grav, reg, br = await asyncio.gather(
         _dns(domain, "MX"), _gravatar(addr), _holehe(addr), _breach(addr))
 
-    out = head("📧", "Email Intelligence", addr)
-    out += row("Provider domain", domain)
-    out += ("▸ <b>Mail server:</b> ✅ " + e(sorted(mx)[0].split()[-1].rstrip(".")) + "\n") if mx \
-        else "▸ <b>Mail server:</b> ❌ no MX record (cannot receive mail)\n"
+    mx_host = sorted(mx)[0].split()[-1].rstrip(".") if mx else ""
+    parts = [
+        head("📧", "Email Intelligence", addr) + section("📬", "Mail server")
+        + tree([("Domain", domain),
+                ("Status", f"✅ {mx_host}" if mx else "❌ no MX record (can't receive mail)")]).rstrip("\n")
+    ]
 
-    out += "\n\n🖼 <b>Gravatar</b>\n"
     if grav:
-        out += row("Name", grav.get("displayName"))
-        out += row("Username", grav.get("preferredUsername"))
-        out += row("Location", grav.get("currentLocation"))
-        out += row("About", (grav.get("aboutMe") or "")[:200])
-        for acc in (grav.get("accounts") or [])[:8]:
-            out += f'▸ <a href="{escape(acc.get("url", ""), quote=True)}">{e(acc.get("shortname", "account"))}</a>\n'
-        if not any(grav.get(k) for k in ("displayName", "preferredUsername", "currentLocation", "aboutMe")):
-            out += "Profile exists but has no public details\n"
+        body = tree([("Name", grav.get("displayName")), ("Username", grav.get("preferredUsername")),
+                     ("Location", grav.get("currentLocation")), ("About", (grav.get("aboutMe") or "")[:200])])
+        body += "".join(
+            f'• <a href="{escape(a.get("url", ""), quote=True)}">{e(a.get("shortname", "account"))}</a>\n'
+            for a in (grav.get("accounts") or [])[:8])
+        body = body.rstrip("\n") or "Profile exists but has no public details"
     else:
-        out += "No public Gravatar profile\n"
+        body = "No public Gravatar profile"
+    parts.append(section("🖼", "Gravatar") + body)
 
-    out += "\n\n🌐 <b>Registered on</b>"
     if reg is None:
-        out += "\n⚠️ holehe unavailable or timed out (run <code>pip install holehe</code>)"
+        parts.append(section("🌐", "Registered on") + "⚠️ holehe unavailable or timed out\n"
+                     "<i>Install it with</i> <code>pip install holehe</code>")
     elif not reg:
-        out += " · 0\nNo registrations detected"
+        parts.append(section("🌐", "Registered on", 0) + "No registrations detected")
     else:
-        out += f" · {len(reg)}\n<blockquote expandable>" + "\n".join(e(s) for s in reg[:80]) + "</blockquote>"
+        parts.append(section("🌐", "Registered on", len(reg))
+                     + "<blockquote expandable>" + "\n".join(e(s) for s in reg[:80]) + "</blockquote>")
 
-    out += "\n\n" + _breach_block(*br)
+    parts.append(section("💥", "Breaches") + _breach_body(*br))
 
     actions = []
     if checker.USERNAME_RE.match(local):
         actions.append((f"👤 Scan “{local[:20]}”", "user", local))
     return Result(
-        out,
+        "\n\n".join(parts),
         links=[
             ("🔍 Google", google(f'"{addr}"')),
             ("📋 Pastes", google(f'"{addr}" site:pastebin.com')),
@@ -301,21 +326,23 @@ async def phone(raw: str, region: str = "ET") -> Result:
     rc = phonenumbers.region_code_for_number(n) or region
 
     valid = phonenumbers.is_valid_number(n)
-    out = head("📱", "Phone Intelligence", intl)
-    out += f"▸ <b>Valid:</b> {'✅ yes' if valid else '❌ no'}"
-    out += "" if valid else f" (possible length: {'yes' if phonenumbers.is_possible_number(n) else 'no'})"
-    out += "\n"
-    out += row("Country", geocoder.country_name_for_number(n, "en"))
-    out += row("Region", geocoder.description_for_number(n, "en"))
-    out += row("Carrier", carrier.name_for_number(n, "en"))
-    out += row("Line type", PT.get(phonenumbers.number_type(n), "Unknown"))
-    out += row("Timezone", ", ".join(pn_tz.time_zones_for_number(n)))
-    out += f"\n▸ <b>E.164:</b> <code>{e(e164)}</code>\n▸ <b>National:</b> <code>{e(nat)}</code>"
-    out += "\n\n<i>Carrier shows the original operator - ported numbers can differ. " \
-           "WhatsApp/Telegram buttons only open a chat if the number is registered there.</i>"
-
+    parts = [
+        head("📱", "Phone Intelligence", intl) + section("📍", "Details")
+        + tree([
+            ("Valid", "✅ yes" if valid else "❌ no"),
+            ("Country", geocoder.country_name_for_number(n, "en")),
+            ("Region", geocoder.description_for_number(n, "en")),
+            ("Carrier", carrier.name_for_number(n, "en")),
+            ("Line type", PT.get(phonenumbers.number_type(n), "Unknown")),
+            ("Timezone", ", ".join(pn_tz.time_zones_for_number(n))),
+        ]).rstrip("\n"),
+        section("🔢", "Formats") + tree([
+            ("E.164", Code(e164)), ("International", Code(intl)), ("National", Code(nat))]).rstrip("\n"),
+        "<i>Carrier shows the original operator - ported numbers can differ. "
+        "WhatsApp/Telegram buttons only open a chat if the number is registered there.</i>",
+    ]
     return Result(
-        out,
+        "\n\n".join(parts),
         links=[
             ("💬 WhatsApp", f"https://wa.me/{digits}"),
             ("✈️ Telegram", f"https://t.me/+{digits}"),
@@ -358,11 +385,12 @@ async def name_search(full: str) -> Result:
     ]
     out = head("🧑", "Name Search", full)
     if variants:
-        out += "🧩 <b>Likely usernames</b>\n" + " · ".join(f"<code>{e(v)}</code>" for v in variants)
-        out += "\n\n<i>Tap a button below to scan a username across 690+ sites.</i>"
+        out += section("🧩", "Likely usernames", len(variants))
+        out += " · ".join(f"<code>{e(v)}</code>" for v in variants)
+        out += "\n\n<i>Tap a 👤 button to scan that username on 690+ sites.</i>"
     else:
         out += "No Latin-letter username guesses for this name. Use the search buttons below."
-    out += "\n\n<i>Names are ambiguous - confirm matches with a photo, city, or workplace.</i>"
+    out += "\n<i>Names are ambiguous - confirm with a photo, city, or workplace.</i>"
     return Result(
         out,
         links=[(label, google(d)) for label, d in dorks],
@@ -382,8 +410,9 @@ async def dorks(target: str) -> Result:
         ("📄 Documents", f"{q} (filetype:pdf OR filetype:xlsx OR filetype:docx)"),
         ("🔐 Leaks", f"{q} (password OR leak OR dump)"),
     ]
-    out = head("🕵️", "Dork Builder", t)
+    out = head("🕵️", "Dork Builder", t) + section("📝", "Queries", len(items))
     out += "<blockquote expandable>" + "\n".join(e(d) for _, d in items) + "</blockquote>"
+    out += "\n\n<i>Tap a button to open that search.</i>"
     links = [(lbl, google(d)) for lbl, d in items]
     links += [
         ("🦆 DuckDuckGo", "https://duckduckgo.com/?q=" + quote_plus(q)),
@@ -432,46 +461,46 @@ async def domain(raw: str) -> Result:
         asyncio.to_thread(_whois, d), _dns(d, "A"), _dns(d, "AAAA"), _dns(d, "MX"),
         _dns(d, "NS"), _dns(d, "TXT"), _dns("_dmarc." + d, "TXT"), _subdomains(d))
 
-    out = head("🌐", "Domain Recon", d)
-    out += "📇 <b>WHOIS</b>\n"
     if w and (w.get("domain_name") or w.get("registrar")):
         created = _first(w.get("creation_date"))
-        age = ""
-        if hasattr(created, "year"):
-            years = (datetime.now(timezone.utc).year - created.year)
-            age = f" (~{years}y old)"
-        out += row("Registrar", w.get("registrar"))
-        out += row("Created", (_fmt_date(w.get("creation_date")) or "") + age)
-        out += row("Expires", _fmt_date(w.get("expiration_date")))
-        out += row("Organization", _first(w.get("org")))
-        out += row("Country", _first(w.get("country")))
+        age = f" (~{datetime.now(timezone.utc).year - created.year}y old)" if hasattr(created, "year") else ""
+        who = tree([
+            ("Registrar", w.get("registrar")),
+            ("Created", (_fmt_date(w.get("creation_date")) or "") + age),
+            ("Expires", _fmt_date(w.get("expiration_date"))),
+            ("Organization", _first(w.get("org"))),
+            ("Country", _first(w.get("country"))),
+        ]).rstrip("\n") or "WHOIS record is private"
     else:
-        out += "No WHOIS data (private or unsupported TLD)\n"
+        who = "No WHOIS data (private or unsupported TLD)"
+    parts = [head("🌐", "Domain Recon", d) + section("📇", "WHOIS") + who]
 
-    out += "\n\n📡 <b>DNS</b>\n"
-    out += row("A", ", ".join(a))
-    out += row("AAAA", ", ".join(aaaa[:3]))
-    out += row("MX", ", ".join(sorted(x.split()[-1].rstrip(".") for x in mx)))
-    out += row("NS", ", ".join(sorted(x.rstrip(".") for x in ns)))
     spf = any("v=spf1" in t_.lower() for t_ in txt)
-    out += f"▸ <b>SPF:</b> {'✅' if spf else '❌'}  <b>DMARC:</b> {'✅' if dmarc else '❌'}\n"
+    dns_txt = tree([
+        ("A", ", ".join(a)),
+        ("AAAA", ", ".join(aaaa[:3])),
+        ("MX", ", ".join(sorted(x.split()[-1].rstrip(".") for x in mx))),
+        ("NS", ", ".join(sorted(x.rstrip(".") for x in ns))),
+        ("Email security", f"SPF {'✅' if spf else '❌'}  ·  DMARC {'✅' if dmarc else '❌'}"),
+    ]).rstrip("\n")
     if txt:
-        out += "<blockquote expandable>" + "\n".join(e(t_[:90]) for t_ in txt[:10]) + "</blockquote>"
+        dns_txt += "\n<blockquote expandable>" + "\n".join(e(t_[:90]) for t_ in txt[:10]) + "</blockquote>"
+    parts.append(section("📡", "DNS") + dns_txt)
 
-    out += "\n\n🧬 <b>Subdomains</b> (certificate logs)"
     file = None
     if subs is None:
-        out += "\n⚠️ crt.sh didn't respond - try again in a minute"
+        parts.append(section("🧬", "Subdomains") + "⚠️ crt.sh didn't respond - try again in a minute")
     elif not subs:
-        out += " · 0\nNone found"
+        parts.append(section("🧬", "Subdomains", 0) + "None found in certificate logs")
     else:
-        out += f" · {len(subs)}\n<blockquote expandable>" + "\n".join(e(s) for s in subs[:50])
-        out += (f"\n… +{len(subs) - 50} more (see file)" if len(subs) > 50 else "") + "</blockquote>"
+        body = "<blockquote expandable>" + "\n".join(e(s) for s in subs[:50])
+        body += (f"\n… +{len(subs) - 50} more (see file)" if len(subs) > 50 else "") + "</blockquote>"
+        parts.append(section("🧬", "Subdomains", len(subs)) + body)
         if len(subs) > 50:
             file = (f"subdomains_{d}.txt", "\n".join(subs).encode())
 
     return Result(
-        out,
+        "\n\n".join(parts),
         links=[
             ("🛡 VirusTotal", f"https://www.virustotal.com/gui/domain/{d}"),
             ("🕰 Wayback", f"https://web.archive.org/web/*/{d}"),
@@ -500,43 +529,41 @@ async def ip_lookup(raw: str) -> Result:
         _json(f"http://ip-api.com/json/{ip}?fields={fields}"),
         _json(f"https://internetdb.shodan.io/{ip}"))
 
-    out = head("📡", "IP Intel", ip)
     links = [
         ("🔍 Shodan", f"https://www.shodan.io/host/{ip}"),
         ("🚨 AbuseIPDB", f"https://www.abuseipdb.com/check/{ip}"),
         ("🛡 VirusTotal", f"https://www.virustotal.com/gui/ip-address/{ip}"),
     ]
+    parts = []
     if geo and geo.get("status") == "success":
-        out += "📍 <b>Location</b> (approximate)\n"
-        out += row("Country", geo.get("country"))
-        out += row("Region / City", ", ".join(x for x in (geo.get("regionName"), geo.get("city")) if x))
-        out += row("Timezone", geo.get("timezone"))
-        out += "\n🏢 <b>Network</b>\n"
-        out += row("ISP", geo.get("isp"))
-        out += row("Org", geo.get("org"))
-        out += row("ASN", geo.get("as"))
-        out += row("Reverse DNS", geo.get("reverse"))
-        flags = [n for k, n in (("proxy", "VPN/Proxy"), ("hosting", "Hosting/Datacenter"), ("mobile", "Mobile network")) if geo.get(k)]
-        out += row("Flags", ", ".join(flags) or "none")
+        flags = [n for k, n in (("proxy", "VPN/Proxy"), ("hosting", "Hosting/Datacenter"),
+                                ("mobile", "Mobile network")) if geo.get(k)]
+        parts.append(head("📡", "IP Intel", ip) + section("📍", "Location (approximate)") + tree([
+            ("Country", geo.get("country")),
+            ("Region / City", ", ".join(x for x in (geo.get("regionName"), geo.get("city")) if x)),
+            ("Timezone", geo.get("timezone")),
+        ]).rstrip("\n"))
+        parts.append(section("🏢", "Network") + tree([
+            ("ISP", geo.get("isp")), ("Org", geo.get("org")), ("ASN", geo.get("as")),
+            ("Reverse DNS", geo.get("reverse")), ("Flags", ", ".join(flags) or "none"),
+        ]).rstrip("\n"))
         if geo.get("lat") is not None:
             links.insert(0, ("🗺 Map", f"https://www.google.com/maps?q={geo['lat']},{geo['lon']}"))
     else:
-        out += "⚠️ Geolocation service unavailable\n"
+        parts.append(head("📡", "IP Intel", ip) + "⚠️ Geolocation service unavailable")
 
-    out += "\n\n🔓 <b>Exposure</b> (Shodan InternetDB)\n"
-    if idb:
-        out += row("Open ports", ", ".join(map(str, idb.get("ports", []))))
-        out += row("Hostnames", ", ".join(idb.get("hostnames", [])[:6]))
-        out += row("Tags", ", ".join(idb.get("tags", [])))
+    exposure = "Nothing indexed"
+    if idb and any(idb.get(k) for k in ("ports", "hostnames", "tags", "vulns")):
         vulns = idb.get("vulns", [])
-        if vulns:
-            out += f"▸ <b>Known CVEs:</b> {len(vulns)} - " + e(", ".join(vulns[:8])) + "\n"
-        if not any(idb.get(k) for k in ("ports", "hostnames", "tags", "vulns")):
-            out += "Nothing indexed\n"
-    else:
-        out += "Nothing indexed\n"
-    out += "\n<i>IP location is usually the ISP's hub, not the person's exact address.</i>"
-    return Result(out, links=links)
+        exposure = tree([
+            ("Open ports", ", ".join(map(str, idb.get("ports", [])))),
+            ("Hostnames", ", ".join(idb.get("hostnames", [])[:6])),
+            ("Tags", ", ".join(idb.get("tags", []))),
+            ("Known CVEs", f"{len(vulns)} - " + ", ".join(vulns[:8]) if vulns else ""),
+        ]).rstrip("\n")
+    parts.append(section("🔓", "Exposure (Shodan InternetDB)") + exposure)
+    parts.append("<i>IP location is usually the ISP's hub, not the person's exact address.</i>")
+    return Result("\n\n".join(parts), links=links)
 
 
 # ───────────────────────── telegram ─────────────────────────
@@ -563,7 +590,7 @@ async def telegram(raw: str) -> Result:
     out = head("✈️", "Telegram Lookup", "@" + uname)
 
     if status != 200 or not title or title.startswith("Telegram:"):
-        out += "❌ No public profile found (username free, private, or banned)"
+        out += "❌ No public profile found\n<i>The username may be free, private, or banned.</i>"
         return Result(out, actions=[("👤 Username scan", "user", uname)])
 
     desc = re.search(r'<div class="tgme_page_description[^"]*"[^>]*>(.*?)</div>', html, re.S)
@@ -573,11 +600,12 @@ async def telegram(raw: str) -> Result:
     kind = ("Channel / group" if re.search(r"subscriber|member", extra_t, re.I)
             else "Bot" if uname.lower().endswith("bot") else "User")
 
-    out += "✅ <b>Public profile found</b>\n"
-    out += row("Name", title)
-    out += row("Type", kind)
-    out += row("Bio / description", _strip(desc.group(1))[:400] if desc else "")
-    out += row("Stats", extra_t if extra_t and not extra_t.startswith("@") else "")
+    out += "✅ <b>Public profile found</b>\n" + tree([
+        ("Name", title),
+        ("Type", kind),
+        ("Bio", _strip(desc.group(1))[:400] if desc else ""),
+        ("Stats", extra_t if extra_t and not extra_t.startswith("@") else ""),
+    ])
     links = [("✈️ Open in Telegram", f"https://t.me/{uname}"),
              ("🔍 Google", google(f'"@{uname}" OR "t.me/{uname}"'))]
     if img:
@@ -592,43 +620,6 @@ def _dms(vals, ref) -> float:
     return -dec if str(ref).upper() in ("S", "W") else dec
 
 
-def exif_report(data: bytes) -> Result:
-    out = head("📷", "Image EXIF")
-    try:
-        img = Image.open(io.BytesIO(data))
-        ex = img.getexif()
-        info = {TAGS.get(k, k): v for k, v in ex.items()}
-        info.update({TAGS.get(k, k): v for k, v in ex.get_ifd(0x8769).items()})
-        gps = {GPSTAGS.get(k, k): v for k, v in ex.get_ifd(0x8825).items()}
-    except Exception:
-        return Result(out + "❌ Couldn't read this image.")
-
-    def clean(v):
-        return v.decode(errors="ignore").strip("\x00 ") if isinstance(v, bytes) else v
-
-    out += row("Size", f"{img.width}×{img.height} {img.format or ''}".strip())
-    for key, label in (("Make", "Camera make"), ("Model", "Camera model"), ("LensModel", "Lens"),
-                       ("Software", "Software"), ("DateTimeOriginal", "Taken"),
-                       ("DateTime", "Modified"), ("Artist", "Artist"), ("Copyright", "Copyright")):
-        out += row(label, clean(info.get(key)))
-
-    links = []
-    if gps.get("GPSLatitude") and gps.get("GPSLongitude"):
-        try:
-            lat = _dms(gps["GPSLatitude"], gps.get("GPSLatitudeRef", "N"))
-            lon = _dms(gps["GPSLongitude"], gps.get("GPSLongitudeRef", "E"))
-            out += f"\n📍 <b>GPS found:</b> <code>{lat:.6f}, {lon:.6f}</code>"
-            links.append(("🗺 Map", f"https://www.google.com/maps?q={lat:.6f},{lon:.6f}"))
-        except Exception:
-            out += "\n📍 GPS data present but unreadable"
-    else:
-        out += "\n📍 No GPS data"
-    if not info and not gps:
-        out += "\n\n<i>No EXIF at all - the image was probably stripped or compressed.</i>"
-    links += REVERSE_LINKS
-    return Result(out, links=links)
-
-
 REVERSE_LINKS = [
     ("🔎 Google Lens", "https://lens.google.com/"),
     ("🇷🇺 Yandex Images", "https://yandex.com/images/"),
@@ -637,9 +628,61 @@ REVERSE_LINKS = [
 ]
 
 
+def exif_report(data: bytes) -> Result:
+    """Reads EXIF from the start of an image file (works on a truncated download)."""
+    out = head("📷", "Image EXIF")
+    try:
+        img = Image.open(io.BytesIO(data))
+        ex = img.getexif()
+        info = {TAGS.get(k, k): v for k, v in ex.items()}
+        try:
+            info.update({TAGS.get(k, k): v for k, v in ex.get_ifd(0x8769).items()})
+        except Exception:
+            pass
+        try:
+            gps = {GPSTAGS.get(k, k): v for k, v in ex.get_ifd(0x8825).items()}
+        except Exception:
+            gps = {}
+        size = f"{img.width}×{img.height} {img.format or ''}".strip()
+    except Exception:
+        return Result(out + "❌ Couldn't read this image.\n<i>Unsupported format (for example HEIC) or not an image.</i>",
+                      links=REVERSE_LINKS)
+
+    def clean(v):
+        if isinstance(v, bytes):
+            return v.decode(errors="ignore").strip("\x00 ")
+        return str(v).strip() if v is not None else None
+
+    out += section("🖼", "Photo") + tree([
+        ("Size", size),
+        ("Camera", " ".join(x for x in (clean(info.get("Make")), clean(info.get("Model"))) if x)),
+        ("Lens", clean(info.get("LensModel"))),
+        ("Software", clean(info.get("Software"))),
+        ("Taken", clean(info.get("DateTimeOriginal"))),
+        ("Modified", clean(info.get("DateTime"))),
+        ("Artist", clean(info.get("Artist"))),
+        ("Copyright", clean(info.get("Copyright"))),
+    ]).rstrip("\n")
+
+    links = []
+    if gps.get("GPSLatitude") and gps.get("GPSLongitude"):
+        try:
+            lat = _dms(gps["GPSLatitude"], gps.get("GPSLatitudeRef", "N"))
+            lon = _dms(gps["GPSLongitude"], gps.get("GPSLongitudeRef", "E"))
+            out += "\n\n" + section("📍", "GPS location") + tree([("Coordinates", Code(f"{lat:.6f}, {lon:.6f}"))]).rstrip("\n")
+            links.append(("🗺 Open map", f"https://www.google.com/maps?q={lat:.6f},{lon:.6f}"))
+        except Exception:
+            out += "\n\n📍 GPS data present but unreadable"
+    else:
+        out += "\n\n📍 <b>No GPS data</b>"
+    if not info and not gps:
+        out += "\n<i>No EXIF at all - the app that sent this image stripped it.</i>"
+    return Result(out, links=links + REVERSE_LINKS)
+
+
 def photo_tip() -> Result:
     text = (head("📷", "Image Tools")
-            + "Telegram strips EXIF from normal photos.\n"
-            "▸ <b>EXIF / GPS:</b> resend the image as a <b>File</b> (attach → File)\n"
-            "▸ <b>Reverse search:</b> open a site below and upload the image there")
+            + "Telegram removes EXIF from normal photos.\n\n"
+            + tree([("EXIF / GPS", "resend the image as a File (📎 → File)"),
+                    ("Reverse search", "open a site below and upload the image")]).rstrip("\n"))
     return Result(text, links=REVERSE_LINKS)
