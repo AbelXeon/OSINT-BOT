@@ -13,6 +13,7 @@ from aiogram.filters import Command, CommandObject
 from aiogram.types import (BotCommand, BufferedInputFile, CallbackQuery, KeyboardButton,
                            Message, ReplyKeyboardMarkup)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiohttp import web
 from dotenv import load_dotenv
 
 import checker
@@ -526,7 +527,27 @@ async def on_text(message: Message):
         await smart(message, message.text)
 
 
+async def start_health_server():
+    """Tiny web server so Render (and UptimeRobot pings) see the service as alive.
+    Only starts when Render provides a PORT, so local runs are unchanged."""
+    port = int(os.getenv("PORT") or 0)
+    if not port:
+        return
+    app = web.Application()
+
+    async def alive(_request):
+        return web.Response(text="OSINT bot is running")
+
+    app.router.add_get("/", alive)
+    app.router.add_get("/health", alive)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    await web.TCPSite(runner, "0.0.0.0", port).start()
+    logging.info("Health server listening on port %s", port)
+
+
 async def main():
+    await start_health_server()
     bot = Bot(
         TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML, link_preview_is_disabled=True),
