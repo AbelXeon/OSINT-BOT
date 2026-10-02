@@ -5,3 +5,4 @@ dnspython>=2.6
 phonenumbers>=8.13
 python-whois>=0.9
 Pillow>=10.0
+holehe>=1.61
