@@ -566,7 +566,6 @@ async def ip_lookup(raw: str) -> Result:
     return Result("\n\n".join(parts), links=links)
 
 
-# ───────────────────────── telegram ─────────────────────────
 def _strip(html: str) -> str:
     return unescape(re.sub(r"<[^>]+>", "", re.sub(r"<br\s*/?>", "\n", html))).strip()
 
