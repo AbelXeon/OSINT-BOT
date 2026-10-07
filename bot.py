@@ -75,7 +75,6 @@ def main_menu() -> ReplyKeyboardMarkup:
     )
 
 
-# what each tool asks for: (what to send, example, how long)
 PROMPTS = {
     "user": ("a username", "abelxeon", "20-60 sec"),
     "email": ("an email address", "name@gmail.com", "1-2 min"),
