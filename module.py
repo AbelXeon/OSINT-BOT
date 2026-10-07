@@ -613,7 +613,6 @@ async def telegram(raw: str) -> Result:
     return Result(out, links=links, actions=[("👤 Username scan", "user", uname)])
 
 
-# ───────────────────────── images ─────────────────────────
 def _dms(vals, ref) -> float:
     d, m, s = (float(x) for x in vals)
     dec = d + m / 60 + s / 3600
