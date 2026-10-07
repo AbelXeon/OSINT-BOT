@@ -44,7 +44,6 @@ KINDS = {
     "dork": ("🕵️", "Dork builder", m.dorks),
 }
 
-# ───────────── bottom menu (buttons under the text field) ─────────────
 TOOL_BUTTONS = {
     "👤 Username": "user", "📧 Email": "email", "📱 Phone": "phone",
     "🧑 Name": "name", "🌐 Domain": "domain", "📡 IP": "ip",
