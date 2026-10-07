@@ -72,7 +72,7 @@ def tree(items) -> str:
     return "\n".join(lines) + ("\n" if lines else "")
 
 
-def row(label: str, value) -> str:  # kept for compatibility
+def row(label: str, value) -> str:  
     return "" if _empty(value) else f"▸ <b>{e(label)}:</b> {e(value)}\n"
 
 
