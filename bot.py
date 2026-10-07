@@ -353,7 +353,6 @@ async def on_cancel(cb: CallbackQuery):
         pass
 
 
-# ───────────── menu buttons ─────────────
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     MODE.pop(message.from_user.id, None)
