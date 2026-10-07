@@ -346,7 +346,7 @@ async def on_help(cb: CallbackQuery):
     try:
         await cb.message.edit_text(text, reply_markup=kb)
     except Exception:
-        pass  # "message is not modified"
+        pass  
 
 
 @dp.callback_query(F.data == "c:x")
