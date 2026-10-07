@@ -90,7 +90,6 @@ PROMPTS = {
 
 MODE: dict[int, str] = {}  # user id -> tool waiting for input
 
-# ───────────── helpers ─────────────
 PENDING: OrderedDict[str, tuple[str, str]] = OrderedDict()  # short ids for inline buttons
 _ids = itertools.count(1)
 
