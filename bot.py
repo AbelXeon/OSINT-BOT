@@ -20,32 +20,15 @@ import checker
 import module as m
 
 load_dotenv()
-
-# Read BOT_TOKEN and OWNER_ID (supports OWNER_ID, TELEGRAM_USER_ID, or USER_ID)
-TOKEN = (os.getenv("BOT_TOKEN") or "").strip()
-raw_owner = (
-    os.getenv("OWNER_ID")
-    or os.getenv("TELEGRAM_USER_ID")
-    or os.getenv("MY_TELEGRAM_ID")
-    or os.getenv("USER_ID")
-    or "0"
-).strip()
-
-try:
-    OWNER_ID = int(raw_owner)
-except ValueError:
-    OWNER_ID = 0
-
-REGION = (os.getenv("DEFAULT_REGION") or "ET").strip().upper()
-
+TOKEN = os.getenv("BOT_TOKEN")
+OWNER_ID = int(os.getenv("OWNER_ID") or 0)
+REGION = (os.getenv("DEFAULT_REGION") or "ET").upper()
 if not TOKEN or not OWNER_ID:
-    raise SystemExit("Set BOT_TOKEN and OWNER_ID (or TELEGRAM_USER_ID) in your environment variables / .env")
+    raise SystemExit("Set BOT_TOKEN and OWNER_ID in your .env file")
 
 logging.basicConfig(level=logging.INFO)
 dp = Dispatcher()
-
-# Lock the bot down so ONLY YOU can interact with it
-dp.message.filter(F.from_user.id == OWNER_ID)
+dp.message.filter(F.from_user.id == OWNER_ID)  # only you can use the bot
 dp.callback_query.filter(F.from_user.id == OWNER_ID)
 
 # kind -> (icon, title, async function)
@@ -363,7 +346,7 @@ async def on_help(cb: CallbackQuery):
     try:
         await cb.message.edit_text(text, reply_markup=kb)
     except Exception:
-        pass
+        pass  # "message is not modified"
 
 
 @dp.callback_query(F.data == "c:x")
@@ -544,139 +527,23 @@ async def on_text(message: Message):
         await smart(message, message.text)
 
 
-# ───────────── render web server with interactive wake-up button ─────────────
-WAKE_HTML = """<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OSINT Bot - Status & Wake Up</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f172a;
-      color: #f8fafc;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-      padding: 16px;
-    }
-    .card {
-      background: #1e293b;
-      padding: 36px 24px;
-      border-radius: 20px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.45);
-      text-align: center;
-      max-width: 400px;
-      width: 100%;
-      border: 1px solid #334155;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: #064e3b;
-      color: #34d399;
-      padding: 6px 16px;
-      border-radius: 999px;
-      font-size: 13px;
-      font-weight: 600;
-      margin-bottom: 20px;
-    }
-    .dot {
-      width: 10px;
-      height: 10px;
-      background: #10b981;
-      border-radius: 50%;
-      box-shadow: 0 0 0 rgba(16, 185, 129, 0.6);
-      animation: pulse 1.8s infinite;
-    }
-    @keyframes pulse {
-      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-      70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
-      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-    }
-    h1 { font-size: 22px; margin: 0 0 8px; }
-    p { color: #94a3b8; font-size: 14px; line-height: 1.5; margin: 0 0 24px; }
-    .btn {
-      display: block;
-      width: 100%;
-      padding: 14px;
-      border-radius: 12px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      border: none;
-      transition: all 0.2s ease;
-      background: #3b82f6;
-      color: #fff;
-      text-decoration: none;
-    }
-    .btn:active { transform: scale(0.98); }
-    .btn:hover { background: #2563eb; }
-    #status {
-      margin-top: 18px;
-      font-size: 13px;
-      color: #38bdf8;
-      min-height: 20px;
-    }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="badge"><div class="dot"></div> BOT SERVER LIVE</div>
-    <h1>OSINT Bot Wake-Up</h1>
-    <p>Touching this button sends a ping to Render. If the container was sleeping, it wakes up immediately!</p>
-    <button class="btn" onclick="wake()">⚡ Tap to Wake Up / Ping</button>
-    <div id="status"></div>
-  </div>
-  <script>
-    async function wake() {
-      const el = document.getElementById('status');
-      el.textContent = '⏳ Pinging server...';
-      try {
-        const res = await fetch('/health');
-        if (res.ok) {
-          const txt = await res.text();
-          el.textContent = '🟢 ' + txt;
-        } else {
-          el.textContent = '⚠️ Responded with HTTP ' + res.status;
-        }
-      } catch (err) {
-        el.textContent = '❌ Ping failed: ' + err;
-      }
-    }
-  </script>
-</body>
-</html>
-"""
-
-
 async def start_health_server():
-    """Tiny web server so Render sees the service as alive and allows manual or automated wake up."""
+    """Tiny web server so Render (and UptimeRobot pings) see the service as alive.
+    Only starts when Render provides a PORT, so local runs are unchanged."""
     port = int(os.getenv("PORT") or 0)
     if not port:
         return
     app = web.Application()
 
-    async def dashboard(_request):
-        return web.Response(text=WAKE_HTML, content_type="text/html")
-
     async def alive(_request):
-        return web.Response(text="OSINT Bot is awake and polling Telegram!", content_type="text/plain")
+        return web.Response(text="OSINT bot is running")
 
-    app.router.add_get("/", dashboard)
+    app.router.add_get("/", alive)
     app.router.add_get("/health", alive)
-    app.router.add_get("/wake", alive)
-    app.router.add_get("/ping", alive)
-
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", port).start()
-    logging.info("Health & wake-up server listening on port %s", port)
+    logging.info("Health server listening on port %s", port)
 
 
 async def main():
