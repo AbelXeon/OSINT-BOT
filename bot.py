@@ -88,7 +88,7 @@ PROMPTS = {
     "dork": ("anything (name, email, phone, username)", "abelxeon", "instant"),
 }
 
-MODE: dict[int, str] = {}  # user id -> 
+MODE: dict[int, str] = {}  
 
 PENDING: OrderedDict[str, tuple[str, str]] = OrderedDict()  # short ids for inline buttons
 _ids = itertools.count(1)
