@@ -398,7 +398,6 @@ async def name_search(full: str) -> Result:
     )
 
 
-# ───────────────────────── dorks ─────────────────────────
 async def dorks(target: str) -> Result:
     t = target.strip()
     q = f'"{t}"'
