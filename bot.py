@@ -28,7 +28,7 @@ if not TOKEN or not OWNER_ID:
 
 logging.basicConfig(level=logging.INFO)
 dp = Dispatcher()
-dp.message.filter(F.from_user.id == OWNER_ID)  # only you can use the bot
+dp.message.filter(F.from_user.id == OWNER_ID)  
 dp.callback_query.filter(F.from_user.id == OWNER_ID)
 
 KINDS = {
