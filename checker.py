@@ -9,7 +9,7 @@ import aiohttp
 
 WMN_URL = "https://raw.githubusercontent.com/WebBreacher/WhatsMyName/main/wmn-data.json"
 CACHE = Path(__file__).with_name("wmn-data.json")
-CACHE_MAX_AGE = 7 * 24 * 3600  # refresh the site list weekly
+CACHE_MAX_AGE = 7 * 24 * 3600  
 CONCURRENCY = 50
 SITE_TIMEOUT = aiohttp.ClientTimeout(total=12)
 USERNAME_RE = re.compile(r"^[A-Za-z0-9._-]{2,40}$")
