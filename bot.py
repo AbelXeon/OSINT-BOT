@@ -431,7 +431,6 @@ async def cmd_scan(message: Message, command: CommandObject):
     await smart(message, arg)
 
 
-# ───────────── forwarded messages ─────────────
 @dp.message(F.forward_origin)
 async def on_forward(message: Message):
     fo = message.forward_origin
