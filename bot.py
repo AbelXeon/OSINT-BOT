@@ -507,7 +507,6 @@ async def on_document(message: Message):
         await status.edit_text("📷 <b>IMAGE EXIF</b>\n⚠️ Couldn't read this image.")
 
 
-# ───────────── plain text (last, so buttons and commands win) ─────────────
 @dp.message(F.text & ~F.text.startswith("/"))
 async def on_text(message: Message):
     kind = MODE.pop(message.from_user.id, None)
