@@ -513,7 +513,6 @@ async def domain(raw: str) -> Result:
     )
 
 
-# ───────────────────────── ip ─────────────────────────
 async def ip_lookup(raw: str) -> Result:
     try:
         addr = ipaddress.ip_address(raw.strip())
