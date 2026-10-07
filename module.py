@@ -34,7 +34,7 @@ INCLUDE_ADULT = os.getenv("INCLUDE_ADULT", "0") == "1"
 class Result:
     text: str
     links: list[tuple[str, str]] = field(default_factory=list)  # (label, url)
-    actions: list[tuple[str, str, str]] = field(default_factory=list)  # (label, kind, target)
+    actions: list[tuple[str, str, str]] = field(default_factory=list)  
     file: tuple[str, bytes] | None = None
 
 
