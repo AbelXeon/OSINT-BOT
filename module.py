@@ -422,7 +422,6 @@ async def dorks(target: str) -> Result:
     return Result(out, links=links)
 
 
-# ───────────────────────── domain ─────────────────────────
 def _first(v):
     return v[0] if isinstance(v, (list, tuple)) and v else v
 
