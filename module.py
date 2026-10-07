@@ -42,7 +42,6 @@ class Code(str):
     """Marks a value to be shown in copyable monospace."""
 
 
-# ───────────────────────── formatting helpers ─────────────────────────
 def e(x) -> str:
     return escape(str(x))
 
