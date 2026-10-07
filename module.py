@@ -352,7 +352,6 @@ async def phone(raw: str, region: str = "ET") -> Result:
     )
 
 
-# ───────────────────────── name ─────────────────────────
 def _variants(full: str) -> list[str]:
     parts = re.sub(r"[^A-Za-z0-9 ]", "", full).lower().split()
     if not parts:
