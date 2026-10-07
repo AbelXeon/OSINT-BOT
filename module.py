@@ -136,7 +136,6 @@ def detect(text: str) -> str:
     return "name"
 
 
-# ───────────────────────── username ─────────────────────────
 CAT_ICON = {
     "social": "💬", "coding": "💻", "gaming": "🎮", "music": "🎵", "video": "🎬",
     "images": "🖼", "art": "🎨", "blog": "✍️", "business": "💼", "finance": "💰",
