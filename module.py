@@ -301,7 +301,6 @@ async def email(raw: str) -> Result:
     )
 
 
-# ───────────────────────── phone ─────────────────────────
 PT = {
     PhoneNumberType.MOBILE: "Mobile", PhoneNumberType.FIXED_LINE: "Landline",
     PhoneNumberType.FIXED_LINE_OR_MOBILE: "Landline or mobile", PhoneNumberType.TOLL_FREE: "Toll-free",
