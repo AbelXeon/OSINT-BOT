@@ -212,7 +212,6 @@ async def on_button(cb: CallbackQuery):
         await execute(kind, target, cb.message)
 
 
-# ───────────── help center ─────────────
 WELCOME = (
     "🕵️ <b>OSINT TOOLKIT</b>\n"
     "━━━━━━━━━━━━━━━━━━\n"
