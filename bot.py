@@ -162,7 +162,6 @@ async def execute(kind: str, target: str, origin: Message):
         await status.edit_text(f"{icon} <b>{title.upper()}</b>\n⚠️ Failed: <code>{escape(str(ex)[:200])}</code>")
 
 
-# ───────────── smart mode: detect what was sent ─────────────
 def plan_for(kind: str, text: str) -> list[tuple[str, str, str]]:
     t = text.strip()
     if kind == "email":
