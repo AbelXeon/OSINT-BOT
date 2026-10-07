@@ -31,7 +31,6 @@ dp = Dispatcher()
 dp.message.filter(F.from_user.id == OWNER_ID)  # only you can use the bot
 dp.callback_query.filter(F.from_user.id == OWNER_ID)
 
-# kind -> (icon, title, async function)
 KINDS = {
     "user": ("👤", "Username scan", m.username),
     "email": ("📧", "Email scan", m.email),
