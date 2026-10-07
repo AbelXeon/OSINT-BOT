@@ -90,7 +90,7 @@ PROMPTS = {
 
 MODE: dict[int, str] = {}  
 
-PENDING: OrderedDict[str, tuple[str, str]] = OrderedDict()  # short ids for inline buttons
+PENDING: OrderedDict[str, tuple[str, str]] = OrderedDict()  
 _ids = itertools.count(1)
 
 
