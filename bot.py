@@ -406,7 +406,6 @@ async def on_help_button(message: Message):
     await show_help(message)
 
 
-# typed commands still work, but you don't need them
 def register(cmd: str, kind: str):
     @dp.message(Command(cmd))
     async def handler(message: Message, command: CommandObject):
