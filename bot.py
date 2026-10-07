@@ -458,7 +458,7 @@ async def on_forward(message: Message):
     await deliver(status, message, m.Result(out.rstrip("\n"), links=links, actions=actions))
 
 
-EXIF_READ_LIMIT = 1_048_576  # EXIF lives at the start of the file, 1 MB is plenty
+EXIF_READ_LIMIT = 1_048_576  
 
 
 async def fetch_head(bot: Bot, file_id: str, limit: int = EXIF_READ_LIMIT) -> bytes:
