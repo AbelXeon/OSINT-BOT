@@ -108,7 +108,6 @@ async def _dns(name: str, rtype: str) -> list[str]:
         return []
 
 
-# ───────────────────────── detection ─────────────────────────
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
 DOMAIN_RE = re.compile(r"^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}$")
 TG_RE = re.compile(r"^(?:https?://)?t\.me/([A-Za-z0-9_]{4,32})/?$")
