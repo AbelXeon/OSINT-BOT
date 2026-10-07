@@ -36,7 +36,7 @@ async def load_sites(session: aiohttp.ClientSession) -> list[dict]:
     sites = []
     for s in data["sites"]:
         if s.get("post_body") or s.get("valid") is False:
-            continue  # POST-based and dead entries are skipped
+            continue  
         sites.append(s)
     return sites
 
