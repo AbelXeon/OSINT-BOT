@@ -458,7 +458,6 @@ async def on_forward(message: Message):
     await deliver(status, message, m.Result(out.rstrip("\n"), links=links, actions=actions))
 
 
-# ───────────── images (fast EXIF) ─────────────
 EXIF_READ_LIMIT = 1_048_576  # EXIF lives at the start of the file, 1 MB is plenty
 
 
