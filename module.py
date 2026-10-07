@@ -183,7 +183,6 @@ async def username(raw: str) -> Result:
     )
 
 
-# ───────────────────────── email ─────────────────────────
 async def _gravatar(addr: str) -> dict | None:
     h = hashlib.md5(addr.encode()).hexdigest()
     data = await _json(f"https://gravatar.com/{h}.json")
